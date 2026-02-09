@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arbeitszeiten - FocusFlow</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <button class="theme-toggle" aria-label="Theme wechseln">🌙</button>
+    <header class="header">
+      <h1>⏰ Arbeitszeiten</h1>
+    </header>
+
+    <main class="app">
+      <div class="card">
+        <h2>⏱️ Neue Zeit hinzufügen</h2>
+        <form id="timeForm" class="form-group">
+          <div class="form-row">
+            <label for="dateInput">Datum:</label>
+            <input type="date" id="dateInput" required />
+          </div>
+          <div class="form-row">
+            <label for="startInput">Startzeit:</label>
+            <input type="time" id="startInput" required />
+          </div>
+          <div class="form-row">
+            <label for="endInput">Endzeit:</label>
+            <input type="time" id="endInput" required />
+          </div>
+          <button type="submit" class="btn-primary">Zeit speichern</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Zeiten Übersicht</h2>
+        <table id="timesTable">
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Startzeit</th>
+              <th>Endzeit</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Zeiten werden hier dynamisch eingefügt -->
+          </tbody>
+        </table>
+        <button id="clearBtn" class="btn-danger">Alle Zeiten löschen</button>
+      </div>
+    </main>
+
+    <script src="zeiten.js"></script>
+  </body>
+</html>
