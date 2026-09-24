@@ -355,16 +355,32 @@ th, td {
   text-align: center;
 }
 
-body.light th,
-body.light td {
-  border-color: #d0d0d0;
-}
-
 th {
+  position: relative;
+  user-select: none;
   background-color: var(--primary);
   color: #fff;
   font-weight: 600;
   padding: 1rem 0.75rem;
+}
+
+th .resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  background: rgba(255,255,255,0.08);
+}
+
+th .resize-handle:hover {
+  background: rgba(255,255,255,0.18);
+}
+
+body.light th,
+body.light td {
+  border-color: #d0d0d0;
 }
 
 td {
@@ -552,6 +568,95 @@ body.light .modal-close {
 .calendar-header button {
   padding: 0.3rem 0.6rem;
   font-size: 0.8rem;
+}
+
+.collapsible-card {
+  overflow: hidden;
+}
+
+.collapsible-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  margin: 0 0 0.75rem 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-align: left;
+  border-radius: 0;
+}
+
+.collapsible-header:hover {
+  transform: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.collapse-indicator {
+  transition: transform 0.2s ease;
+  font-size: 1rem;
+}
+
+.collapsible-card.collapsed .collapse-indicator {
+  transform: rotate(-90deg);
+}
+
+.collapsible-card.collapsed .collapsible-content {
+  display: none;
+}
+
+.settings-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.summary-box {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 0.8rem;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.summary-box span {
+  color: var(--text-dark);
+  opacity: 0.8;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+body.light .summary-box span {
+  color: var(--text-light);
+}
+
+.summary-box strong {
+  font-size: 1.2rem;
+  color: var(--primary);
+}
+
+.delta-positive {
+  color: #22c55e;
+  font-weight: 700;
+}
+
+.delta-negative {
+  color: #f87171;
+  font-weight: 700;
 }
 
 .calendar-weekdays {

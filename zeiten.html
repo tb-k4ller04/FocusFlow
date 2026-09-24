@@ -13,33 +13,78 @@
     </header>
 
     <main class="app">
-      <div class="card">
-        <h2>⏱️ Neue Zeit hinzufügen</h2>
-        <form id="timeForm" class="form-group">
-          <div class="form-row">
-            <label for="dateInput">Datum:</label>
-            <input type="date" id="dateInput" required />
-          </div>
-          <div class="form-row">
-            <label for="startInput">Startzeit:</label>
-            <input type="time" id="startInput" required />
-          </div>
-          <div class="form-row">
-            <label for="endInput">Endzeit:</label>
-            <input type="time" id="endInput" required />
-          </div>
-          <button type="submit" class="btn-primary">Zeit speichern</button>
-        </form>
+      <div class="card wide collapsible-card">
+        <button type="button" class="collapsible-header" aria-expanded="true">
+          <span>⏱️ Neue Zeit hinzufügen</span>
+          <span class="collapse-indicator">▾</span>
+        </button>
+        <div class="collapsible-content">
+          <form id="timeForm" class="form-group">
+            <div class="form-row">
+              <label for="dateInput">Datum:</label>
+              <input type="date" id="dateInput" required />
+            </div>
+            <div class="form-row">
+              <label for="startInput">Startzeit:</label>
+              <input type="time" id="startInput" required />
+            </div>
+            <div class="form-row">
+              <label for="endInput">Endzeit:</label>
+              <input type="time" id="endInput" required />
+            </div>
+            <button type="submit" class="btn-primary">Zeit speichern</button>
+          </form>
+        </div>
       </div>
 
-      <div class="card">
-        <h2>Zeiten Übersicht</h2>
+      <div class="card wide collapsible-card">
+        <button type="button" class="collapsible-header" aria-expanded="true">
+          <span>⚙️ Stundenstand einstellen</span>
+          <span class="collapse-indicator">▾</span>
+        </button>
+        <div class="collapsible-content">
+          <form id="balanceSettingsForm" class="settings-form">
+            <div class="form-row">
+              <label for="dailyTargetInput">Tagesziel (Stunden):</label>
+              <input type="number" id="dailyTargetInput" min="0" step="0.25" value="8" />
+            </div>
+            <div class="form-row">
+              <label for="previousOvertimeInput">Vorhandene Überstunden (Stunden):</label>
+              <input type="number" id="previousOvertimeInput" step="0.25" value="0" />
+            </div>
+            <button type="submit" class="btn-primary">Stand speichern</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card wide">
+        <h2>📊 Überblick</h2>
+        <div class="summary-grid">
+          <div class="summary-box">
+            <span>Gesamt Überstunden</span>
+            <strong id="totalBalance">0h 00m</strong>
+          </div>
+          <div class="summary-box">
+            <span>Vorkontiert</span>
+            <strong id="previousBalance">0h 00m</strong>
+          </div>
+          <div class="summary-box">
+            <span>Aktuell aus Stempelzeiten</span>
+            <strong id="currentBalance">0h 00m</strong>
+          </div>
+        </div>
+
         <table id="timesTable">
           <thead>
             <tr>
               <th>Datum</th>
               <th>Startzeit</th>
               <th>Endzeit</th>
+              <th>Gesamtzeit (erst ab 06:30)</th>
+              <th>Pause</th>
+              <th>Netto</th>
+              <th>Soll</th>
+              <th>Delta</th>
               <th>Aktion</th>
             </tr>
           </thead>
