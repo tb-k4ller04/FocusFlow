@@ -34,9 +34,14 @@
   </header>
 
   <main class="app">
+    <div class="dashboard-collapse-controls wide" aria-label="Bereiche ein- oder ausblenden">
+      <button id="expandAllBtn" class="btn-primary" type="button">Alle Bereiche öffnen</button>
+      <button id="collapseAllBtn" class="btn-primary" type="button">Alle Bereiche schließen</button>
+    </div>
+
     <!-- To-Dos -->
-    <div class="card wide">
-      <h2>📝 To-Dos</h2>
+    <div class="card wide dashboard-section">
+      <button class="section-toggle" type="button" aria-expanded="true"><span>📝 To-Dos</span><span class="collapse-indicator">▾</span></button>
       <form id="todoForm" class="form-group">
         <div class="form-row">
           <input id="todoTitle" placeholder="Titel" required>
@@ -65,20 +70,20 @@
     </div>
 
     <!-- Statistik -->
-    <div class="card wide">
-      <h2>📊 Statistik</h2>
+    <div class="card wide dashboard-section">
+      <button class="section-toggle" type="button" aria-expanded="true"><span>📊 Statistik</span><span class="collapse-indicator">▾</span></button>
       <p>Erledigte Aufgaben: <strong id="stats">0</strong></p>
+      <p>Aktueller Überstundenstand: <strong id="currentOvertime">0h 00m</strong></p>
+      <p><span id="timeUntilLabel">Zeit bis 16:00 Uhr:</span> <strong id="timeUntilFour">0h 00m</strong></p>
       <div class="button-group">
-        <button id="clockInBtn" class="btn-primary">Einstempeln</button>
-        <button id="clockOutBtn" class="btn-primary">Ausstempeln</button>
         <button id="showTimesBtn" class="btn-primary">Zeiten anzeigen</button>
       </div>
       <ul id="statsList"></ul>
     </div>
 
     <!-- Timer -->
-    <div class="card">
-      <h2>⏱ Timer / Stoppuhr</h2>
+    <div class="card dashboard-section">
+      <button class="section-toggle" type="button" aria-expanded="true"><span>⏱ Timer / Stoppuhr</span><span class="collapse-indicator">▾</span></button>
       <form id="timerForm" class="form-group">
         <div class="form-row">
           <label for="timerMode">Modus:</label>
@@ -110,8 +115,8 @@
     </div>
 
     <!-- Notizen -->
-    <div class="card">
-      <h2>🧠 Notizen</h2>
+    <div class="card dashboard-section">
+      <button class="section-toggle" type="button" aria-expanded="true"><span>🧠 Notizen</span><span class="collapse-indicator">▾</span></button>
       <form id="noteForm" class="form-group">
         <div class="form-row">
           <input id="noteInput" placeholder="Neue Notiz">
@@ -122,8 +127,8 @@
     </div>
 
     <!-- Kalender mit Terminen -->
-    <div class="card">
-      <h2>📅 Kalender & Termine</h2>
+    <div class="card dashboard-section">
+      <button class="section-toggle" type="button" aria-expanded="true"><span>📅 Kalender & Termine</span><span class="collapse-indicator">▾</span></button>
       <form id="eventForm" class="form-group">
         <div class="form-row">
           <label for="eventDate">Datum:</label>
@@ -152,8 +157,8 @@
     </div>
 
     <!-- Quick Actions -->
-    <div class="card">
-      <h2>⚡ Quick Actions</h2>
+    <div class="card dashboard-section">
+      <button class="section-toggle" type="button" aria-expanded="true"><span>⚡ Quick Actions</span><span class="collapse-indicator">▾</span></button>
       <div class="quick-actions-grid">
         <div class="quick-action-group">
           <h3>⏱️ Schnell-Timer</h3>
@@ -170,8 +175,7 @@
         </div>
         
         <div class="quick-action-group">
-          <h3>🎯 Cleanup</h3>
-          <button id="clearDoneBtn" class="btn-primary">Erledigte löschen</button>
+          <h3>🎯 Übersicht</h3>
           <button id="statsBtn" class="btn-primary">Diese Woche</button>
         </div>
       </div>

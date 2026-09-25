@@ -7,7 +7,32 @@ let times = JSON.parse(localStorage.getItem(TIME_KEY)) || [];
 
 function getDailyTargetHours() {
   const storedValue = Number.parseFloat(localStorage.getItem(DAILY_TARGET_KEY));
-  return Number.isFinite(storedValue) && storedValue > 0 ? storedValue : 8;
+  return Number.isFinite(storedValue) && storedValue > 0 ? storedValue : 8.5;
+}
+
+function getTargetHoursForDate(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getDay() === 5 ? 4.5 : getDailyTargetHours();
+}
+
+const ENTRY_TYPE_LABELS = {
+  work: 'Arbeitszeit',
+  'comp-time': 'Freizeitausgleich',
+  vacation: 'Urlaubstag',
+  sick: 'Krankheitstag'
+};
+
+function getEntryType(entry) {
+  return entry?.type || 'work';
+}
+
+function isSpecialDay(entry) {
+  return ['comp-time', 'vacation', 'sick'].includes(getEntryType(entry));
+}
+
+function getEntryTypeLabel(entry) {
+  return ENTRY_TYPE_LABELS[getEntryType(entry)] || ENTRY_TYPE_LABELS.work;
 }
 
 function getPreviousOvertimeMinutes() {
@@ -17,7 +42,7 @@ function getPreviousOvertimeMinutes() {
 
 function setDailyTargetHours(hours) {
   const safeValue = Number.parseFloat(hours);
-  localStorage.setItem(DAILY_TARGET_KEY, String(Number.isFinite(safeValue) && safeValue > 0 ? safeValue : 8));
+  localStorage.setItem(DAILY_TARGET_KEY, String(Number.isFinite(safeValue) && safeValue > 0 ? safeValue : 8.5));
 }
 
 function setPreviousOvertimeHours(hours) {
@@ -88,20 +113,25 @@ function calculateDailySummary() {
 
   times.forEach((entry) => {
     if (!entry?.date) return;
-    const rawMinutes = calculateDurationMinutes(entry.start, entry.end);
-    const dayMinutes = dailyMap.get(entry.date) || 0;
-    dailyMap.set(entry.date, dayMinutes + rawMinutes);
+    if (!dailyMap.has(entry.date)) dailyMap.set(entry.date, []);
+    dailyMap.get(entry.date).push(entry);
   });
 
-  const dailyTargetMinutes = getDailyTargetHours() * 60;
-
   return [...dailyMap.entries()]
-    .map(([date, totalMinutes]) => {
-      const countedMinutes = times
-        .filter((entry) => entry.date === date)
+    .map(([date, entries]) => {
+      const dailyTargetMinutes = getTargetHoursForDate(date) * 60;
+      const specialDay = entries.find((entry) => isSpecialDay(entry));
+      const workEntries = entries.filter((entry) => getEntryType(entry) === 'work' && entry.start && entry.end);
+      const countedMinutes = workEntries
         .reduce((sum, entry) => sum + calculateEffectiveWorkingMinutes(entry.start, entry.end), 0);
       const pauseMinutes = getBreakMinutes(countedMinutes);
       const netMinutes = Math.max(countedMinutes - pauseMinutes, 0);
+      const totalMinutes = workEntries
+        .reduce((sum, entry) => sum + calculateDurationMinutes(entry.start, entry.end), 0);
+      let diffMinutes = netMinutes - dailyTargetMinutes;
+
+      if (specialDay?.type === 'comp-time') diffMinutes = -dailyTargetMinutes;
+      if (specialDay?.type === 'vacation' || specialDay?.type === 'sick') diffMinutes = 0;
 
       return {
         date,
@@ -109,8 +139,16 @@ function calculateDailySummary() {
         pauseMinutes,
         netMinutes,
         targetMinutes: dailyTargetMinutes,
-        diffMinutes: netMinutes - dailyTargetMinutes
+        diffMinutes
       };
+
+  if (typeof XLSX !== 'undefined') {
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Arbeitszeiten');
+    XLSX.writeFile(workbook, `focusflow_zeiten_${new Date().toISOString().split('T')[0]}.xlsx`);
+    return;
+  }
     })
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
@@ -160,7 +198,7 @@ function renderDailySummary() {
     const effectiveMinutes = calculateEffectiveWorkingMinutes(time.start, time.end);
     const pauseMinutes = getBreakMinutes(effectiveMinutes);
     const netMinutes = calculateNetWorkingMinutes(time.start, time.end);
-    const targetMinutes = getDailyTargetHours() * 60;
+    const targetMinutes = getTargetHoursForDate(time.date) * 60;
     const diffMinutes = netMinutes - targetMinutes;
     return { time, rawMinutes: effectiveMinutes, pauseMinutes, netMinutes, targetMinutes, diffMinutes };
   });
@@ -200,10 +238,63 @@ function addTime(time) {
     id: Date.now(),
     date: time.date,
     start: time.start,
-    end: time.end
+    end: time.end,
+    type: 'work'
   });
 
-  times.sort((a, b) => new Date(b.date) - new Date(a.date));
+  times.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  saveTimes();
+  renderAll();
+  return true;
+}
+
+function addStartTime(date, start) {
+  if (!date || !start) {
+    alert('Bitte Datum und Startzeit ausfüllen!');
+    return false;
+  }
+
+  times.push({ id: Date.now(), date, start, end: '', type: 'work' });
+  times.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  saveTimes();
+  renderAll();
+  return true;
+}
+
+function addSpecialDay(date, type) {
+  if (!date || !isSpecialDay({ type })) {
+    alert('Bitte Datum und eine gültige Tagesart auswählen!');
+    return false;
+  }
+
+  times.push({ id: Date.now(), date, start: '', end: '', type });
+  times.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  saveTimes();
+  renderAll();
+  return true;
+}
+
+function addEndTime(date, end) {
+  if (!date || !end) {
+    alert('Bitte Datum und Endzeit ausfüllen!');
+    return false;
+  }
+
+  const openTime = times
+    .filter((time) => time.date === date && !time.end)
+    .sort((a, b) => b.id - a.id)[0];
+
+  if (!openTime) {
+    alert('Für dieses Datum wurde noch keine offene Startzeit gefunden.');
+    return false;
+  }
+
+  if (openTime.start >= end) {
+    alert('Endzeit muss nach der Startzeit liegen!');
+    return false;
+  }
+
+  openTime.end = end;
   saveTimes();
   renderAll();
   return true;
@@ -214,6 +305,58 @@ function deleteTime(id) {
   times = times.filter((t) => t.id !== id);
   saveTimes();
   renderAll();
+}
+
+function exportTimesToExcel() {
+  const headers = ['Datum', 'Art', 'Startzeit', 'Endzeit', 'Gesamtzeit', 'Pause', 'Netto', 'Soll', 'Delta'];
+  const rows = [...times]
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)
+    .map((time) => {
+      const entryType = getEntryType(time);
+      const specialDay = isSpecialDay(time);
+      const isOpen = entryType === 'work' && !time.end;
+      const rawMinutes = specialDay || isOpen ? 0 : calculateDurationMinutes(time.start, time.end);
+      const pauseMinutes = isOpen ? 0 : getBreakMinutes(rawMinutes);
+      const effectiveMinutes = specialDay || isOpen ? 0 : rawMinutes - pauseMinutes;
+      const targetMinutes = getTargetHoursForDate(time.date) * 60;
+      const diffMinutes = specialDay
+        ? entryType === 'comp-time' ? -targetMinutes : 0
+        : isOpen ? 0 : effectiveMinutes - targetMinutes;
+
+      return [
+        formatDate(time.date),
+        getEntryTypeLabel(time),
+        specialDay ? '' : time.start,
+        specialDay ? '' : time.end || 'Laufend',
+        specialDay || isOpen ? '' : formatDurationMinutes(rawMinutes),
+        specialDay || isOpen ? '' : formatDurationMinutes(pauseMinutes),
+        specialDay || isOpen ? '' : formatDurationMinutes(effectiveMinutes),
+        formatDurationMinutes(targetMinutes),
+        isOpen ? '' : formatSignedDuration(diffMinutes)
+      ];
+    });
+
+  if (typeof XLSX !== 'undefined') {
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Arbeitszeiten');
+    XLSX.writeFile(workbook, `focusflow_zeiten_${new Date().toISOString().split('T')[0]}.xlsx`);
+    return;
+  }
+
+  const escapeCell = (value) => `"${String(value).replace(/"/g, '""')}"`;
+  const csv = '\uFEFF' + [headers, ...rows]
+    .map((row) => row.map(escapeCell).join(';'))
+    .join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `focusflow_zeiten_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function renderTimes() {
@@ -229,23 +372,30 @@ function renderTimes() {
     return;
   }
 
-  times.forEach((time) => {
-    const rawMinutes = calculateDurationMinutes(time.start, time.end);
-    const pauseMinutes = getBreakMinutes(rawMinutes);
-    const effectiveMinutes = rawMinutes - pauseMinutes;
-    const targetMinutes = getDailyTargetHours() * 60;
-    const diffMinutes = effectiveMinutes - targetMinutes;
+  const sortedTimes = [...times].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+
+  sortedTimes.forEach((time) => {
+    const entryType = getEntryType(time);
+    const specialDay = isSpecialDay(time);
+    const isOpen = entryType === 'work' && !time.end;
+    const rawMinutes = specialDay || isOpen ? 0 : calculateDurationMinutes(time.start, time.end);
+    const pauseMinutes = isOpen ? 0 : getBreakMinutes(rawMinutes);
+    const effectiveMinutes = specialDay || isOpen ? 0 : rawMinutes - pauseMinutes;
+    const targetMinutes = getTargetHoursForDate(time.date) * 60;
+    const diffMinutes = specialDay
+      ? entryType === 'comp-time' ? -targetMinutes : 0
+      : isOpen ? 0 : effectiveMinutes - targetMinutes;
     const tr = document.createElement('tr');
     const deltaClass = diffMinutes >= 0 ? 'delta-positive' : 'delta-negative';
     tr.innerHTML = `
       <td>${formatDate(time.date)}</td>
-      <td>${time.start}</td>
-      <td>${time.end}</td>
-      <td>${formatDurationMinutes(rawMinutes)}</td>
-      <td>${formatDurationMinutes(pauseMinutes)}</td>
-      <td>${formatDurationMinutes(effectiveMinutes)}</td>
+      <td>${specialDay ? getEntryTypeLabel(time) : time.start}</td>
+      <td>${specialDay ? '-' : time.end || 'Laufend'}</td>
+      <td>${specialDay || isOpen ? '-' : formatDurationMinutes(rawMinutes)}</td>
+      <td>${specialDay || isOpen ? '-' : formatDurationMinutes(pauseMinutes)}</td>
+      <td>${specialDay || isOpen ? '-' : formatDurationMinutes(effectiveMinutes)}</td>
       <td>${formatDurationMinutes(targetMinutes)}</td>
-      <td class="${deltaClass}">${formatSignedDuration(diffMinutes)}</td>
+      <td class="${isOpen ? '' : deltaClass}">${isOpen ? '-' : formatSignedDuration(diffMinutes)}</td>
       <td>
         <button class="btn-delete" onclick="deleteTime(${time.id})" title="Löschen">🗑️</button>
       </td>
@@ -307,7 +457,6 @@ function setupColumnResizing() {
 
 function renderAll() {
   renderTimes();
-  renderDailySummary();
   renderSummary();
   setupColumnResizing();
 }
@@ -315,6 +464,19 @@ function renderAll() {
 function formatDate(dateStr) {
   const date = new Date(dateStr + 'T00:00:00');
   return date.toLocaleDateString('de-DE', { weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function returnToFocusFlow(event) {
+  event.preventDefault();
+
+  if (window.opener && !window.opener.closed) {
+    window.opener.focus();
+    window.close();
+    return false;
+  }
+
+  window.location.href = 'index.html';
+  return false;
 }
 
 function clearTimes() {
@@ -361,20 +523,52 @@ document.addEventListener('DOMContentLoaded', function() {
   renderAll();
 
   const form = document.getElementById('timeForm');
-  if (form) {
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-      const newTime = {
-        date: document.getElementById('dateInput').value,
-        start: document.getElementById('startInput').value,
-        end: document.getElementById('endInput').value
-      };
+  const dateInput = document.getElementById('dateInput');
+  const entryTypeInput = document.getElementById('entryTypeInput');
+  const timeInput = document.getElementById('timeInput');
+  const timeInputRow = timeInput?.closest('.form-row');
+  const saveStartBtn = document.getElementById('saveStartBtn');
+  const saveEndBtn = document.getElementById('saveEndBtn');
+  const saveDayBtn = document.getElementById('saveDayBtn');
 
-      if (addTime(newTime)) {
-        form.reset();
-      }
-    });
+  if (dateInput && !dateInput.value) {
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    dateInput.value = `${today.getFullYear()}-${month}-${day}`;
   }
+
+  const updateEntryTypeUI = () => {
+    const isWork = entryTypeInput?.value === 'work';
+    if (timeInputRow) timeInputRow.hidden = !isWork;
+    if (timeInput) timeInput.required = isWork;
+    if (saveStartBtn) saveStartBtn.hidden = !isWork;
+    if (saveEndBtn) saveEndBtn.hidden = !isWork;
+    if (saveDayBtn) saveDayBtn.hidden = isWork;
+  };
+
+  entryTypeInput?.addEventListener('change', updateEntryTypeUI);
+  updateEntryTypeUI();
+
+  saveStartBtn?.addEventListener('click', () => {
+    if (!dateInput || !timeInput) return;
+    if (addStartTime(dateInput.value, timeInput.value)) timeInput.value = '';
+  });
+
+  saveEndBtn?.addEventListener('click', () => {
+    if (!dateInput || !timeInput) return;
+    if (addEndTime(dateInput.value, timeInput.value)) timeInput.value = '';
+  });
+
+  saveDayBtn?.addEventListener('click', () => {
+    if (!dateInput || !entryTypeInput) return;
+    if (addSpecialDay(dateInput.value, entryTypeInput.value)) {
+      entryTypeInput.value = 'work';
+      updateEntryTypeUI();
+    }
+  });
+
+  form?.addEventListener('submit', (event) => event.preventDefault());
 
   const balanceSettingsForm = document.getElementById('balanceSettingsForm');
   if (balanceSettingsForm) {
@@ -391,6 +585,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   const themeManager = new ThemeManager();
+  const exportTimesBtn = document.getElementById('exportTimesBtn');
+  if (exportTimesBtn) exportTimesBtn.addEventListener('click', exportTimesToExcel);
   const clearBtn = document.getElementById('clearBtn');
   if (clearBtn) clearBtn.addEventListener('click', clearTimes);
 

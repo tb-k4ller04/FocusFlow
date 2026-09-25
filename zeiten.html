@@ -4,12 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Arbeitszeiten - FocusFlow</title>
+    <link rel="icon" href="accessories-clock-2.ico" />
     <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   </head>
   <body>
     <button class="theme-toggle" aria-label="Theme wechseln">🌙</button>
     <header class="header">
       <h1>⏰ Arbeitszeiten</h1>
+      <a class="home-button" href="index.html" onclick="returnToFocusFlow(event)">← Zurück zu FocusFlow</a>
     </header>
 
     <main class="app">
@@ -25,14 +28,23 @@
               <input type="date" id="dateInput" required />
             </div>
             <div class="form-row">
-              <label for="startInput">Startzeit:</label>
-              <input type="time" id="startInput" required />
+              <label for="entryTypeInput">Art des Eintrags:</label>
+              <select id="entryTypeInput">
+                <option value="work">Arbeitszeit</option>
+                <option value="comp-time">Freizeitausgleich</option>
+                <option value="vacation">Urlaubstag</option>
+                <option value="sick">Krankheitstag</option>
+              </select>
             </div>
             <div class="form-row">
-              <label for="endInput">Endzeit:</label>
-              <input type="time" id="endInput" required />
+              <label for="timeInput" id="timeInputLabel">Ereigniszeit:</label>
+              <input type="time" id="timeInput" required />
             </div>
-            <button type="submit" class="btn-primary">Zeit speichern</button>
+            <div class="button-group">
+              <button type="button" id="saveStartBtn" class="btn-primary">Einstempeln speichern</button>
+              <button type="button" id="saveEndBtn" class="btn-primary">Ausstempeln speichern</button>
+              <button type="button" id="saveDayBtn" class="btn-primary" hidden>Tag speichern</button>
+            </div>
           </form>
         </div>
       </div>
@@ -46,7 +58,7 @@
           <form id="balanceSettingsForm" class="settings-form">
             <div class="form-row">
               <label for="dailyTargetInput">Tagesziel (Stunden):</label>
-              <input type="number" id="dailyTargetInput" min="0" step="0.25" value="8" />
+              <input type="number" id="dailyTargetInput" min="0" step="0.25" value="8.5" />
             </div>
             <div class="form-row">
               <label for="previousOvertimeInput">Vorhandene Überstunden (Stunden):</label>
@@ -65,7 +77,7 @@
             <strong id="totalBalance">0h 00m</strong>
           </div>
           <div class="summary-box">
-            <span>Vorkontiert</span>
+            <span>vorheriges Saldo</span>
             <strong id="previousBalance">0h 00m</strong>
           </div>
           <div class="summary-box">
@@ -92,7 +104,10 @@
             <!-- Zeiten werden hier dynamisch eingefügt -->
           </tbody>
         </table>
-        <button id="clearBtn" class="btn-danger">Alle Zeiten löschen</button>
+        <div class="button-group">
+          <button id="exportTimesBtn" class="btn-primary" type="button">Excel exportieren</button>
+          <button id="clearBtn" class="btn-danger" type="button">Alle Zeiten löschen</button>
+        </div>
       </div>
     </main>
 

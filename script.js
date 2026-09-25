@@ -136,13 +136,6 @@ class TodoManager {
     this.render();
   }
   
-  clearDone() {
-    if (!confirm('Alle erledigten Aufgaben löschen?')) return;
-    this.todos = this.todos.filter(t => !t.done);
-    this.save();
-    this.render();
-  }
-  
   save() {
     localStorage.setItem(this.TODO_KEY, JSON.stringify(this.todos));
   }
@@ -203,39 +196,11 @@ class TimeManager {
   }
   
   init() {
-    const clockInBtn = document.getElementById('clockInBtn');
-    const clockOutBtn = document.getElementById('clockOutBtn');
     const showTimesBtn = document.getElementById('showTimesBtn');
-    
-    if (clockInBtn) clockInBtn.addEventListener('click', () => this.clockIn());
-    if (clockOutBtn) clockOutBtn.addEventListener('click', () => this.clockOut());
+
     if (showTimesBtn) showTimesBtn.addEventListener('click', () => {
-      const w = window.open('zeiten.html', '_blank');
-      try { if (w) w.opener = null; } catch (e) { /* ignore */ }
+      window.open('zeiten.html', '_blank');
     });
-  }
-  
-  clockIn() {
-    const now = new Date();
-    this.times.push({
-      id: Date.now(),
-      date: now.toISOString().split('T')[0], // store as YYYY-MM-DD for portability
-      start: now.toTimeString().slice(0,8), // HH:MM:SS
-      end: ''
-    });
-    this.save();
-  }
-  
-  clockOut() {
-    for (let i = this.times.length - 1; i >= 0; i--) {
-      if (!this.times[i].end) {
-        const now = new Date();
-        this.times[i].end = now.toTimeString().slice(0,8);
-        this.save();
-        return;
-      }
-    }
-    // no active stamp found
   }
   
   save() {
@@ -938,17 +903,105 @@ class StatsDisplay {
   constructor(todoManager, timeManager) {
     this.todoManager = todoManager;
     this.timeManager = timeManager;
+    this.countdownInterval = null;
     this.init();
   }
   
   init() {
-    const clearDoneBtn = document.getElementById('clearDoneBtn');
-    if (clearDoneBtn) {
-      clearDoneBtn.addEventListener('click', () => this.todoManager.clearDone());
-    }
     this.render();
+    this.updateTimeUntilFour();
+    this.countdownInterval = setInterval(() => this.updateTimeUntilFour(), 1000);
     // Re-render when times are updated elsewhere
     document.addEventListener('timesUpdated', () => this.render());
+  }
+
+  formatDuration(totalMinutes) {
+    const absMinutes = Math.abs(Math.round(totalMinutes));
+    const hours = Math.floor(absMinutes / 60);
+    const minutes = absMinutes % 60;
+    return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  }
+
+  formatSignedDuration(totalMinutes) {
+    if (totalMinutes === 0) return '0h 00m';
+    return `${totalMinutes > 0 ? '+' : '-'}${this.formatDuration(totalMinutes)}`;
+  }
+
+  getTargetHoursForDate(dateStr) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    if (date.getDay() === 5) return 4.5;
+
+    const dailyTarget = Number.parseFloat(localStorage.getItem('focusflow_daily_target'));
+    return Number.isFinite(dailyTarget) && dailyTarget > 0 ? dailyTarget : 8.5;
+  }
+
+  getEntryType(time) {
+    return time?.type || 'work';
+  }
+
+  getEntryTypeLabel(time) {
+    const labels = {
+      'comp-time': 'Freizeitausgleich',
+      vacation: 'Urlaubstag',
+      sick: 'Krankheitstag'
+    };
+    return labels[this.getEntryType(time)] || 'Arbeitszeit';
+  }
+
+  getCurrentOvertimeMinutes() {
+    const dailyEntries = new Map();
+
+    this.timeManager.times.forEach((time) => {
+      if (!time?.date) return;
+      if (!dailyEntries.has(time.date)) dailyEntries.set(time.date, []);
+      dailyEntries.get(time.date).push(time);
+    });
+
+    let currentOvertime = 0;
+    dailyEntries.forEach((entries, date) => {
+      const specialDay = entries.find((time) => ['comp-time', 'vacation', 'sick'].includes(this.getEntryType(time)));
+      const targetMinutes = this.getTargetHoursForDate(date) * 60;
+
+      if (specialDay?.type === 'comp-time') {
+        currentOvertime -= targetMinutes;
+        return;
+      }
+      if (specialDay?.type === 'vacation' || specialDay?.type === 'sick') return;
+
+      const effectiveMinutes = entries
+        .filter((time) => this.getEntryType(time) === 'work' && time.start && time.end)
+        .reduce((sum, time) => {
+          const [startHour, startMinute] = time.start.split(':').map(Number);
+          const [endHour, endMinute] = time.end.split(':').map(Number);
+          const effectiveStart = Math.max(startHour * 60 + startMinute, 6 * 60 + 30);
+          const endMinutes = endHour * 60 + endMinute;
+          return sum + Math.max(endMinutes - effectiveStart, 0);
+        }, 0);
+
+      let pauseMinutes = effectiveMinutes >= 6 * 60 ? 30 : 0;
+      if (effectiveMinutes > 9 * 60 + 30) {
+        pauseMinutes += Math.min(15, effectiveMinutes - (9 * 60 + 30));
+      }
+      currentOvertime += Math.max(effectiveMinutes - pauseMinutes, 0) - targetMinutes;
+    });
+
+    const previousOvertime = Number.parseFloat(localStorage.getItem('focusflow_previous_overtime'));
+    return currentOvertime + (Number.isFinite(previousOvertime) ? previousOvertime * 60 : 0);
+  }
+
+  updateTimeUntilFour() {
+    const element = document.getElementById('timeUntilFour');
+    if (!element) return;
+
+    const now = new Date();
+    const targetHour = now.getDay() === 5 ? 12 : 16;
+    const targetTime = new Date(now);
+    targetTime.setHours(targetHour, 0, 0, 0);
+    const minutesUntilTarget = Math.max(Math.ceil((targetTime - now) / 60000), 0);
+    const label = document.getElementById('timeUntilLabel');
+    if (label) label.textContent = `Zeit bis ${String(targetHour).padStart(2, '0')}:00 Uhr:`;
+    element.textContent = this.formatDuration(minutesUntilTarget);
   }
   
   render() {
@@ -975,7 +1028,9 @@ class StatsDisplay {
         const [year, month, day] = time.date.split('-').map(Number);
         dateText = new Date(year, month - 1, day).toLocaleDateString('de-DE');
       } catch (e) { }
-      li.textContent = `⏱️ ${dateText}: ${time.start} → ${time.end || 'Laufend'}`;
+      li.textContent = this.getEntryType(time) === 'work'
+        ? `⏱️ ${dateText}: ${time.start} → ${time.end || 'Laufend'}`
+        : `📌 ${dateText}: ${this.getEntryTypeLabel(time)}`;
       container.appendChild(li);
     });
     
@@ -984,6 +1039,11 @@ class StatsDisplay {
     if (statsElement) {
       statsElement.textContent = doneTodos.length;
     }
+
+    const overtimeElement = document.getElementById('currentOvertime');
+    if (overtimeElement) {
+      overtimeElement.textContent = this.formatSignedDuration(this.getCurrentOvertimeMinutes());
+    }
   }
 }
 
@@ -991,6 +1051,23 @@ class StatsDisplay {
 // App Initialization
 // =========================
 document.addEventListener('DOMContentLoaded', function() {
+  const dashboardSections = Array.from(document.querySelectorAll('.dashboard-section'));
+  const setDashboardSections = (collapsed) => {
+    dashboardSections.forEach((section) => {
+      section.classList.toggle('collapsed', collapsed);
+      section.querySelector('.section-toggle')?.setAttribute('aria-expanded', String(!collapsed));
+    });
+  };
+
+  dashboardSections.forEach((section) => {
+    section.querySelector('.section-toggle')?.addEventListener('click', () => {
+      const collapsed = section.classList.toggle('collapsed');
+      section.querySelector('.section-toggle')?.setAttribute('aria-expanded', String(!collapsed));
+    });
+  });
+  document.getElementById('expandAllBtn')?.addEventListener('click', () => setDashboardSections(false));
+  document.getElementById('collapseAllBtn')?.addEventListener('click', () => setDashboardSections(true));
+
   // Initialize all managers
   new ThemeManager();
   new QuoteManager();
